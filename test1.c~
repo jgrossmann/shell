@@ -1,0 +1,88 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+#include <ctype.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <poll.h>
+#include <signal.h>
+#include <errno.h>
+#include <assert.h>
+
+char* checkpath(char* command, char** prepaths, int numpaths){
+	int test = 0, i = 0;
+	char cmd[1024];
+	char path[1024];
+	struct stat statinfo;
+	if(prepaths == NULL || (test=stat(command,&statinfo))==0){
+		return command;
+	}
+	char* cmdpath;
+	for(;i<numpaths;i++){
+		strcpy(cmd,command); strcpy(path,prepaths[i]);
+		cmdpath=malloc(sizeof(char)*(strlen(cmd)+strlen(path))+1);
+		sprintf(cmdpath,"%s%s",path, cmd);
+		if((test = stat(path,&statinfo))==0){
+			return cmdpath;
+		}
+		free(cmdpath);
+	}
+	return command;
+}
+int numpaths(){
+	FILE* file = fopen("shell-config","r");
+	char buffer[1024]; int count = 0;
+	while(fgets(buffer,1024,file)!=NULL){
+		count++;
+	}
+	fclose(file);
+	return count;
+}
+		
+char** patharray(void){
+	int i = 0;
+	char path[1024];
+	char** paths = malloc(sizeof(char*)*100);
+	FILE* file = fopen("shell-config", "r");
+	if(file == NULL){
+		fclose(file);
+		printf("Missing PATH file. You will have to enter the full command name to execute.\n");
+		return NULL;
+	}
+	while(fgets(path,1024,file)!=NULL){
+		if(path[strlen(path)-1] == '\n'){
+			path[strlen(path)-1] = '\0';
+		}
+		paths[i] = strdup(path); i++;
+	}
+	paths[i] = NULL;
+	fclose(file);
+	return paths;
+}
+
+
+int main(void){
+	int num = numpaths(), i = 0, j = 0;
+	struct stat result;
+	char* in ="/bin/ls -ltr .";
+	printf("yes: %d\n",stat(in,&result));
+	char** paths = patharray();
+	char* buffer = "/ls";
+	char* correct = checkpath(buffer, paths, num);
+	char* a = "hello";
+	char* b = strdup(a);
+	printf("test: %s\n",b);
+	printf("path: %s\n",correct);
+	for(;i<num;i++){
+		free(paths[i]);
+	}
+	free(paths);
+	free(b);
+	free(correct);
+	return 0;
+}
+
