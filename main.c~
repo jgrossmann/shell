@@ -1,11 +1,13 @@
 /*
  * project 1 (shell) main.c template 
  *
- * project partner names and other information up here, please
+ * I did not have enough time to finish step 2. I got it working partially.
+	Step 1 is in its entirety in the file "part1.c". 
+	"main.c" is very glitchy in parallel mode and possibly sequential. but part1 works fine.
+	I submitted late in order to complete my comments and print statements. I spent so much time
+ with this that I stopped commenting becuase I never needed to.
  *
  */
-
-/* you probably won't need any other header files for this project */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -28,7 +30,7 @@ struct rusage timeusage, Ctimeusage;
 struct timeval usertime,childusertime, kerneltime,childkerneltime;
 long double totusertime = 0.0, totkerneltime = 0.0;
 
-void time(void){
+void time(void){ //prints time when called.
 	getrusage(RUSAGE_SELF,&timeusage); getrusage(RUSAGE_CHILDREN,&Ctimeusage);
 	usertime = timeusage.ru_utime; childusertime=Ctimeusage.ru_utime;
 	totusertime=usertime.tv_sec+childusertime.tv_sec+(usertime.tv_usec+childusertime.tv_usec)*(.000001);
@@ -40,6 +42,8 @@ void time(void){
 
 
 char mode(char** cmd, int numstrings, char m){
+/*first checks if input is just one char. if so it prints current mode. then checks if first input is mode or m. if so, 
+it checks the next string for shortcuts or full version of parallel or sequential and returns appropriately.*/
 	if(numstrings < 2){
 		if(cmd[0][0]!='m'){
 			return 'f';
@@ -73,6 +77,7 @@ char mode(char** cmd, int numstrings, char m){
 
 
 void loopfree(char** arr, int numcommands){
+	/*frees all memory inside my char**s*/
 	int i = 0;
 	if(numcommands ==0){
 		for(;arr[i]!=NULL;i++){
@@ -87,23 +92,22 @@ void loopfree(char** arr, int numcommands){
 }
 
 char* checkpath(char* command, char** prepaths, int numpaths){
+/*checks commands for validity by prepending paths*/
 	int test = 0, i = 0;
 	char cmd[1024];
 	char path[1024];
 	char* c = strdup(command);
 	struct stat statinfo;
-	printf("orig cmd: %s\n",command);
 	if(prepaths == NULL || (test=stat(command,&statinfo))==0){
-		return c;
+		return c;//returns original command as is
 	}
 	char* cmdpath;
 	for(;i<numpaths;i++){
 		strcpy(cmd,command); strcpy(path,prepaths[i]);
 		cmdpath=malloc(sizeof(char)*(strlen(cmd)+strlen(path))+1);
-		sprintf(cmdpath,"%s%s",path, cmd);
+		sprintf(cmdpath,"%s%s",path, cmd);//concatenate path and command
 		if((test = stat(cmdpath,&statinfo))==0){
-			printf("path prepended: %s\n",cmdpath);
-			free(c);
+			free(c);//return concatenated string if valid
 			return cmdpath;
 		}
 		free(cmdpath);
@@ -112,6 +116,7 @@ char* checkpath(char* command, char** prepaths, int numpaths){
 }
 
 int Numstrings(char* string, char delim){
+	//counts number of strings I will wind up having after tokenify
 	int i = 0, count = 1;
 	for(;i<strlen(string);i++){
 		if(string[i] == delim){
@@ -122,6 +127,8 @@ int Numstrings(char* string, char delim){
 }
 
 void removeextrainput(char* s){
+	/*cleans up user input so i can work with it. takes out 
+	unnecesary semi colons as well as spaces.*/
 	if(s==NULL){
 		return;}
 	int len = strlen(s), i = 0, j = 0, numspaces = 0, space = 0;
@@ -129,9 +136,11 @@ void removeextrainput(char* s){
 	for(; i < len; i++){
 		if(s[i] == '#'){
 			s[i] = '\0';break;
-		}
+		}//removes comment sections
 	}
 	i = 0; len =strlen(s);
+	/*if first char is semicolon, or there are 2 semicolons before
+	a valid text character or the last char is semi colon, gets rid of them*/
 	while(i<len-numcolons){
 		if(s[i]==';'){
 			j=i+1; symbol++;
@@ -153,6 +162,8 @@ void removeextrainput(char* s){
 	}
 	s[len-numcolons]='\0';
 	i=0,j=0,len = strlen(s), text = 0, symbol = 0;
+	/*removes leading space, double space, other whitespace chars
+	or trailing whitespace*/
 	while(i<len-numspaces){
 		if(isspace(s[i])){
 			j = i +1; space++; //know its a space but not sure if its 2 spaces in a row.
@@ -192,7 +203,7 @@ void removeextrainput(char* s){
 	}
 }
 
-char** tokenify(char *s, char* delim){
+char** tokenify(char *s, char* delim){//self explanitory
 	if(s==NULL){
 		return NULL;}
 	int len = strlen(s);
@@ -218,6 +229,7 @@ char** tokenify(char *s, char* delim){
 }		
 
 int numpaths(){
+	//returns the number of possible paths i have to worry about
 	FILE* file = fopen("shell-config","r");
 	char buffer[1024]; int count = 0;
 	while(fgets(buffer,1024,file)!=NULL){
@@ -228,11 +240,12 @@ int numpaths(){
 }
 		
 char** patharray(int npaths){
+	//creates array of paths i have to check in
 	int i = 0;
 	char path[1024];
 	char** paths = malloc(sizeof(char*)*npaths+sizeof(NULL));
 	FILE* file = fopen("shell-config", "r");
-	if(file == NULL){
+	if(file == NULL){//if the file for some reason is not in this directory
 		fclose(file);
 		printf("Missing PATH file. You will have to enter the full command name to execute.\n");
 		return NULL;
@@ -249,6 +262,7 @@ char** patharray(int npaths){
 }
 
  struct process {
+	//each background process gets one and is stored in a linked list
         pid_t pid;
 		char *status;
 		char remove;
@@ -259,13 +273,14 @@ char** patharray(int npaths){
     };
     
 void list_insert(pid_t* childpids, int numpids, char*** pcommands,struct process **head) {
+	//after every command line input this inserts new processes into linked list
 	struct process *temp = *head; int i = 0;
-	if(*head == NULL){
+	if(*head == NULL){//first entry in list
 		struct process *newnode = malloc(sizeof(struct process));
 		newnode->pid = childpids[i]; newnode->status = "running"; newnode->command = pcommands[i];i++;
 		*head = newnode; newnode->next = NULL; newnode->remove = 'n';newnode->nextval = 0;newnode->previous = 0;
-	}
-	for(;i<numpids;i++){
+	}//i added a lot of test cases which is why it looks so packed and messy
+	for(;i<numpids;i++){//not first entries in list
 		struct process *newnode = malloc(sizeof(struct process));
 		newnode->pid = childpids[i]; newnode->status = "running";newnode->command = pcommands[i];
 		newnode->next = NULL; newnode->remove = 'n';
@@ -279,43 +294,43 @@ void list_insert(pid_t* childpids, int numpids, char*** pcommands,struct process
 }
 
 void process_remove(struct process **head){
+	//removes all processes that have been marked to be removed
 	struct process *temp = *head, *prev;
 	char** cmd;
-	printf("%d\n",temp->nextval);
 	while(temp != NULL){
 		if(temp->remove == 'y'){
-			if(temp->previous == NULL){
+			if(temp->previous == NULL){//if head
 				jobs(&temp, 0);
 				cmd = temp->command;loopfree(cmd,0); 
-				if(temp->nextval!=0){
+				if(temp->nextval!=0){//if not only process in list
 					*head = temp->next; free(temp); temp = *head; temp->previous = 0; temp->prev = NULL;continue;
-				}else{
+				}else{//if only process on list
 					*head = NULL; free(temp); return;
 				}
 				 
-			}else{
+			}else{//if processes besides the head
 				prev->next = temp->next; temp = temp->next; loopfree(temp->prev->command,0);free(temp->prev);temp->prev = prev;
 			}
 		}
 		prev = temp; temp = temp->next;
 	}
-	printf("%s\n",prev->status);
 	prev->nextval = 0;
 }		 
 
 int jobs(struct process** head, int processes){
+	//prints jobs based on parameters
 	struct process *temp = *head;
-	if(processes==0){
+	if(processes==0){//this is only for when a process is done and is being removed
 		printf("Process: %d (%s) completed.\n",temp->pid,temp->command[0]);
 		return 0;
-	}else if(processes == -1){
-		if(temp->nextval==0){
+	}else if(processes == -1){//this is a test case to exit when in p-mode
+		if(temp->nextval==0){//essentially if all jobs are done
 			return 0;
 		}else{
 			return 1;
 		}
 	}
-	while(temp!=NULL){
+	while(temp!=NULL){//this is for when jobs command is used. getting segfault here
 		printf("PID: %d  command: (%s)    status: %s",temp->pid,temp->command[0],temp->status);
 		temp = temp->next;
 	}
@@ -323,16 +338,16 @@ int jobs(struct process** head, int processes){
 }
 
 int parallel(char** prepaths){
-	struct process *head = malloc(sizeof(struct process)); head = NULL;
+	struct process *head = malloc(sizeof(struct process)); head = NULL;//set head of processes linked list to NULL;
 	struct pollfd fds[1];
 	fds[0].fd = 0; fds[0].events = POLLIN;
 	char buffer[1024], *prompt = "INPUT$: ";
-	char*** pcommands;
-	char**commands;
+	char*** pcommands;//will hold full commands to go to the processes array for reference when printing
+	char**commands;//will holds strings of commands seperated by ;
 	int pollstatus = 1, numchildren=0, numcommands=0,i=0,t,j=0,numstrings=0,flag = 0,npaths=numpaths(),nulltest = 0, first = 0;
 	printf("%s",prompt); fflush(stdout);
 do{
-	if(pollstatus > 0){
+	if(pollstatus > 0){//initially start here when p-mode starts
 		nulltest = fgets(buffer, 1024, stdin);
 		if(nulltest == NULL){
 			return 1;
@@ -343,45 +358,47 @@ do{
 		pcommands = malloc(sizeof(char**)*numcommands);
 		pid_t* childPIDS;
 		char** cmd;
-		childPIDS = malloc(sizeof(pid_t)*numchildren+sizeof(NULL));
+		childPIDS = malloc(sizeof(pid_t)*numchildren+sizeof(NULL));//hold all new pIDs for possible new processes
 		pid_t childpid;
-		for(;i<numcommands;i++){
-			numstrings = Numstrings(commands[i], ' ');
-			char** tcmd = tokenify(commands[i], " ");
-			char* tempcmd = checkpath(tcmd[0],prepaths,npaths);
+		for(;i<numcommands;i++){//depends on how many commands inputed
+			numstrings = Numstrings(commands[i], ' ');//number of strings in i_th command
+			char** tcmd = tokenify(commands[i], " ");//breaks up i_th command into strings
+			char* tempcmd = checkpath(tcmd[0],prepaths,npaths);//checks command with patharray
 			char** cmd = malloc(sizeof(char*)*numstrings+sizeof(NULL)); int t = 1;
-			cmd[0] = tempcmd;
+			cmd[0] = tempcmd;//puts updated path into command array
 			for(;t<numstrings;t++){
 				cmd[t] = strdup(tcmd[t]);
-			}
+			} //copies strings of i_th command from tcmd but with updated path
 			cmd[t] = NULL;		
 			if((!strcasecmp(cmd[0], "mode"))||(strlen(cmd[0])==1)){
+				//if mode command, handle it.
 				mode_ret = mode(cmd, numstrings, m);
 				if(mode_ret == m){
 					loopfree(cmd, numstrings); loopfree(tcmd, numstrings); numchildren--; 
 					continue;
-				}else if(mode_ret == 'f'){
+				}else if(mode_ret == 'f'){ //if nonsense mode call
 				}else{
 					m = mode_ret; loopfree(cmd, numstrings);loopfree(tcmd,numstrings); numchildren--;
 					continue;
 				}
 			}
-			if(!strcasecmp(cmd[0], "exit")){
+			if(!strcasecmp(cmd[0], "exit")){ //handle exit command
 				flag = 1; numchildren--;
 				loopfree(cmd, numstrings); loopfree(tcmd, numstrings);
 			 	continue;
 			}
-			if(!strcasecmp(cmd[0], "jobs")){
+			if(!strcasecmp(cmd[0], "jobs")){ //handle jobs command. did not get it quite finished
 				numchildren--; jobs(&head, 1); loopfree(cmd,numstrings); loopfree(tcmd,numstrings);
+				continue;
 			}
-	
+			//spawning children starts here
 			if((childpid=fork())==0){
 				printf("In child: %d with PID: %d\n", j, getpid());
 							
 				if (execv(cmd[0], cmd) < 0) {
 		 			fprintf(stderr, "execv failed: %s\n", strerror	(errno)); 
 					loopfree(cmd,numstrings); loopfree(commands,numcommands); free(childPIDS);
-					loopfree(prepaths,npaths);loopfree(tcmd,numstrings);
+					loopfree(prepaths,npaths);loopfree(tcmd,numstrings);free(head);
 					exit(0);
   				}
 
@@ -392,33 +409,33 @@ do{
 			loopfree(tcmd,numstrings);
 			j++;
 		}
-		list_insert(childPIDS,numchildren,pcommands,&head);
+		list_insert(childPIDS,numchildren,pcommands,&head); //add new children to process list
 		free(childPIDS);free(pcommands);loopfree(commands,numcommands);
 		printf("%s",prompt); fflush(stdout);
-	}else if(pollstatus==0){
+	}else if(pollstatus==0){ //if no keyboard entries
 		struct process* temp = head;
-		while(temp != NULL){
+		while(temp != NULL){	//loop through processes list to see if any are finished
 			int rstatus=0;
 			pid_t child;
 			if(temp->pid>0){
 				child = waitpid(temp->pid,&rstatus,WNOHANG);
-				if(child>0){
+				if(child>0){ //process finished
 					printf("Parent got carcass of child process %d, return val %d\n", child, rstatus);
 					assert(temp->pid == child);
-					temp->remove = 'y'; temp->status="done";
+					temp->remove = 'y'; temp->status="done"; //flags for removal
 				}
 			}
 			temp = temp->next;
 		}
-		if(head !=NULL){
+		if(head !=NULL){ //process cleanup
 			process_remove(&head);}
-		if(flag > 0 && (jobs(&head,-1) == 0)){
+		if(flag > 0 && (jobs(&head,-1) == 0)){//exit stipulations. works perfectly in step1
 			loopfree(prepaths,npaths); free(head);time();
 			return(1);
-		}else if(flag>0){
+		}else if(flag>0){//if processes are still running when exit is called
 			printf("Can only exit when all processes finish!\n");
 		}
-		if(m=='s' && (jobs(&head,-1)==0)){
+		if(m=='s' && (jobs(&head,-1)==0)){//changes mode, works perfectly in step1
 			free(head);
 			return 0;
 		}
@@ -442,43 +459,41 @@ main(int argc, char **argv) {
 		i = 0;
 		int len = strlen(buffer);
 		buffer[len -1] = '\0';
-		removeextrainput(buffer);
-		numcommands = Numstrings(buffer, ';');
-		commands = tokenify(buffer, ";");
+		removeextrainput(buffer);//workable input
+		numcommands = Numstrings(buffer, ';');//number of commands separated by ;
+		commands = tokenify(buffer, ";"); //splits commands into strings
 		if(commands == NULL){
 			printf("Error reading input.");
 			printf("%s", prompt);
 			fflush(stdout);
 			continue;
 		}
-		while(i < numcommands){
+		while(i < numcommands){ //loop for each command
 			
-			numstrings = Numstrings(commands[i], ' ');
-			char** tcmd = tokenify(commands[i], " ");
-			char* tempcmd = checkpath(tcmd[0],prepaths,npaths);
-			printf("tempcmd: %s\n",tempcmd);
+			numstrings = Numstrings(commands[i], ' '); //number of strings in i_th command
+			char** tcmd = tokenify(commands[i], " "); //breaks up i_th command into strings
+			char* tempcmd = checkpath(tcmd[0],prepaths,npaths); //checks first string with paths
 			char** cmd = malloc(sizeof(char*)*numstrings+sizeof(NULL)); int t = 1;
 			cmd[0] = tempcmd;
-			printf("cmd[0]: %s\n",cmd[0]);
 			for(;t<numstrings;t++){
 				cmd[t] = strdup(tcmd[t]);
-				printf("%d\n",t);
 			}
 			cmd[t] = NULL;
-			if(!strcasecmp(cmd[0], "exit")){
+			if(!strcasecmp(cmd[0], "exit")){ //handles exit call
 				loopfree(commands,numcommands);
 				loopfree(cmd, numstrings);loopfree(prepaths,npaths);loopfree(tcmd, numstrings);time();
 				exit(0);
 			}
-			if((!strcasecmp(cmd[0], "mode"))||(strlen(cmd[0])==1)){
+			if((!strcasecmp(cmd[0], "mode"))||(strlen(cmd[0])==1)){ //handles mode call
 					mode_ret = mode(cmd, numstrings, m);
-					if(mode_ret == m){
+					if(mode_ret == m){ //call to s-mode
 						i++; loopfree(cmd, numstrings);loopfree(tcmd,numstrings); continue;
-					}else if(mode_ret == 'f'){
-					}else{
+					}else if(mode_ret == 'f'){ //nonsense mode call
+					}else{ //call to p-mode
 						m = mode_ret; loopfree(cmd, numstrings);loopfree(tcmd,numstrings); i++; continue;
 					}
 			}
+			//spawning children sequentially
        		pid_t p = fork();
         	if (p == 0) {
             /* in child */
@@ -493,10 +508,6 @@ main(int argc, char **argv) {
             /* in parent */
             	int rstatus = 0;
             	pid_t childp = wait(&rstatus);
-
-            /* for this simple starter code, the only child process we should
-               "wait" for is the one we just spun off, so check that we got the
-               same process id */ 
             	assert(p == childp);
 
             	printf("Parent got carcass of child process %d, return val %d\n", childp, rstatus);
@@ -510,19 +521,19 @@ main(int argc, char **argv) {
 		}
 		loopfree(commands, numcommands);
 		//all commands have finished
-		if(m=='p'){
+		if(m=='p'){ //goin into parallel mode awww yeah (yikes).
 			parallel_ret = parallel(prepaths);
 			if(parallel_ret == 1){
 				exit(0); 
 			}         
 		}
-		if(m=='s'){
+		if(m=='s'){ //continues with sequential mode. boring but it works!
 			printf("%s", prompt);
         	fflush(stdout);
 			nulltest = fgets(buffer,1024,stdin);
 		}
     }
-	if(nulltest==NULL){
+	if(nulltest==NULL){ //handles EOF
 		loopfree(prepaths,npaths);time();
 		return 0;
 	}

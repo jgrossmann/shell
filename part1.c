@@ -86,7 +86,6 @@ char* checkpath(char* command, char** prepaths, int numpaths){
 	char path[1024];
 	char* c = strdup(command);
 	struct stat statinfo;
-	printf("orig cmd: %s\n",command);
 	if(prepaths == NULL || (test=stat(command,&statinfo))==0){
 		return c;
 	}
@@ -96,7 +95,6 @@ char* checkpath(char* command, char** prepaths, int numpaths){
 		cmdpath=malloc(sizeof(char)*(strlen(cmd)+strlen(path))+1);
 		sprintf(cmdpath,"%s%s",path, cmd);
 		if((test = stat(cmdpath,&statinfo))==0){
-			printf("path prepended: %s\n",cmdpath);
 			free(c);
 			return cmdpath;
 		}
@@ -253,13 +251,10 @@ void parallel(char** commands, int numcommands, int i/*commandnum*/, char** prep
 		numstrings = Numstrings(commands[i], ' ');
 		char** tcmd = tokenify(commands[i], " ");
 		char* tempcmd = checkpath(tcmd[0],prepaths,npaths);
-		printf("tempcmd: %s\n",tempcmd);
 		char** cmd = malloc(sizeof(char*)*numstrings+sizeof(NULL)); int t = 1;
 		cmd[0] = tempcmd;
-		printf("cmd[0]: %s\n",cmd[0]);
 		for(;t<numstrings;t++){
 			cmd[t] = strdup(tcmd[t]);
-			printf("%d\n",t);
 		}
 		cmd[t] = NULL;		
 		if((!strcasecmp(cmd[0], "mode"))||(strlen(cmd[0])==1)){
@@ -314,7 +309,6 @@ void parallel(char** commands, int numcommands, int i/*commandnum*/, char** prep
 		exit(0);
 	}
 }
-
 int 
 main(int argc, char **argv) {
 	int i = 0, numcommands=0,numstrings=0, npaths = numpaths();
@@ -346,13 +340,10 @@ main(int argc, char **argv) {
 			numstrings = Numstrings(commands[i], ' ');
 			char** tcmd = tokenify(commands[i], " ");
 			char* tempcmd = checkpath(tcmd[0],prepaths,npaths);
-			printf("tempcmd: %s\n",tempcmd);
 			char** cmd = malloc(sizeof(char*)*numstrings+sizeof(NULL)); int t = 1;
 			cmd[0] = tempcmd;
-			printf("cmd[0]: %s\n",cmd[0]);
 			for(;t<numstrings;t++){
 				cmd[t] = strdup(tcmd[t]);
-				printf("%d\n",t);
 			}
 			cmd[t] = NULL;
 			if(!strcasecmp(cmd[0], "exit")){

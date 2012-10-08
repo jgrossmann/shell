@@ -80,6 +80,31 @@ void loopfree(char** arr, int numcommands){
 	free(arr);
 }
 
+char* checkpath(char* command, char** prepaths, int numpaths){
+	int test = 0, i = 0;
+	char cmd[1024];
+	char path[1024];
+	char* c = strdup(command);
+	struct stat statinfo;
+	printf("orig cmd: %s\n",command);
+	if(prepaths == NULL || (test=stat(command,&statinfo))==0){
+		return c;
+	}
+	char* cmdpath;
+	for(;i<numpaths;i++){
+		strcpy(cmd,command); strcpy(path,prepaths[i]);
+		cmdpath=malloc(sizeof(char)*(strlen(cmd)+strlen(path))+1);
+		sprintf(cmdpath,"%s%s",path, cmd);
+		if((test = stat(cmdpath,&statinfo))==0){
+			printf("path prepended: %s\n",cmdpath);
+			free(c);
+			return cmdpath;
+		}
+		free(cmdpath);
+	}
+	return c;
+}
+
 int Numstrings(char* string, char delim){
 	int i = 0, count = 1;
 	for(;i<strlen(string);i++){
@@ -186,34 +211,71 @@ char** tokenify(char *s, char* delim){
 	return tokstrings;
 }		
 
-void parallel(char** commands, int numcommands, int i/*commandnum*/){
-	int numchildren = numcommands - i, k = 0, j = 0, numstrings = 0, flag = 0;
+int numpaths(){
+	FILE* file = fopen("shell-config","r");
+	char buffer[1024]; int count = 0;
+	while(fgets(buffer,1024,file)!=NULL){
+		count++;
+	}
+	fclose(file);
+	return count;
+}
+		
+char** patharray(int npaths){
+	int i = 0;
+	char path[1024];
+	char** paths = malloc(sizeof(char*)*npaths+1);
+	FILE* file = fopen("shell-config", "r");
+	if(file == NULL){
+		fclose(file);
+		printf("Missing PATH file. You will have to enter the full command name to execute.\n");
+		return NULL;
+	}
+	while(fgets(path,1024,file)!=NULL){
+		if(path[strlen(path)-1] == '\n'){
+			path[strlen(path)-1] = '\0';
+		}
+		paths[i] = strdup(path); i++;
+	}
+	paths[i] = NULL;
+	fclose(file);
+	return paths;
+}
+
+
+void parallel(char** commands, int numcommands, int i/*commandnum*/, char** prepaths){
+	int numchildren = numcommands - i, k = 0, j = 0, numstrings = 0, flag = 0, npaths = numpaths();
 	pid_t* childPIDS;
 	char** cmd;
 	childPIDS = malloc(sizeof(pid_t)*numchildren+sizeof(NULL));
 	pid_t childpid;
 	for(;i<numcommands;i++){
 		numstrings = Numstrings(commands[i], ' ');
-		cmd = tokenify(commands[i], " ");
-		int h = 0;
-		while(cmd[h]!='\0'){
-			printf("%s",cmd[h]); h++;
-		}printf("\n\n");
-						
+		char** tcmd = tokenify(commands[i], " ");
+		char* tempcmd = checkpath(tcmd[0],prepaths,npaths);
+		printf("tempcmd: %s\n",tempcmd);
+		char** cmd = malloc(sizeof(char*)*numstrings+sizeof(NULL)); int t = 1;
+		cmd[0] = tempcmd;
+		printf("cmd[0]: %s\n",cmd[0]);
+		for(;t<numstrings;t++){
+			cmd[t] = strdup(tcmd[t]);
+			printf("%d\n",t);
+		}
+		cmd[t] = NULL;		
 		if((!strcasecmp(cmd[0], "mode"))||(strlen(cmd[0])==1)){
 			mode_ret = mode(cmd, numstrings, m);
 			if(mode_ret == m){
-			loopfree(cmd, numstrings); numchildren--; 
+			loopfree(cmd, numstrings); loopfree(tcmd, numstrings); numchildren--; 
 			continue;
 			}else if(mode_ret == 'f'){
 			}else{
-				m = mode_ret; loopfree(cmd, numstrings); numchildren--;
+				m = mode_ret; loopfree(cmd, numstrings);loopfree(tcmd,numstrings); numchildren--;
 				continue;
 			}
 		}
 		if(!strcasecmp(cmd[0], "exit")){
 			flag = 1; numchildren--;
-			loopfree(cmd, numstrings); printf("Will exit shell once all jobs have finished.");
+			loopfree(cmd, numstrings); loopfree(tcmd, numstrings);printf("Will exit shell once all jobs have finished.\n");
 		 	continue;
 		}
 		if((childpid=fork())==0){
@@ -222,13 +284,14 @@ void parallel(char** commands, int numcommands, int i/*commandnum*/){
 			if (execv(cmd[0], cmd) < 0) {
 		 		fprintf(stderr, "execv failed: %s\n", strerror	(errno)); 
 				loopfree(cmd,numstrings); loopfree(commands,numcommands); free(childPIDS);
+				loopfree(prepaths,npaths);loopfree(tcmd,numstrings);
 				exit(0);
   			}
 
 		}else{
 			childPIDS[j] = childpid;
 		}
-		loopfree(cmd, numstrings);
+		loopfree(cmd, numstrings); loopfree(tcmd,numstrings);
 		j++;
 	}
 	for(; k<numchildren; k++){
@@ -247,19 +310,19 @@ void parallel(char** commands, int numcommands, int i/*commandnum*/){
 	}	
 	free(childPIDS);
 	if(flag > 0){
-		loopfree(commands, numcommands); time();
+		loopfree(commands, numcommands); loopfree(prepaths,npaths);time();
 		exit(0);
 	}
 }
-
 int 
 main(int argc, char **argv) {
+	int i = 0, numcommands=0,numstrings=0, npaths = numpaths();
     char *prompt = "hitme> ", nulltest;
 	char **commands;
+	char **prepaths = patharray(npaths);
     printf("%s", prompt);
     fflush(stdout);
     char buffer[1024];
-	int i = 0, numcommands=0,numstrings=0;
     while ((nulltest=fgets(buffer, 1024, stdin)) != NULL) {
         /* process current command line in buffer */
 		i = 0;
@@ -276,23 +339,33 @@ main(int argc, char **argv) {
 		}
 		while(i < numcommands){
 			if(m=='p'){
-				parallel(commands, numcommands, i);
+				parallel(commands, numcommands, i,prepaths);
 				break;
 			}
 			numstrings = Numstrings(commands[i], ' ');
-			char** cmd = tokenify(commands[i], " ");
+			char** tcmd = tokenify(commands[i], " ");
+			char* tempcmd = checkpath(tcmd[0],prepaths,npaths);
+			printf("tempcmd: %s\n",tempcmd);
+			char** cmd = malloc(sizeof(char*)*numstrings+sizeof(NULL)); int t = 1;
+			cmd[0] = tempcmd;
+			printf("cmd[0]: %s\n",cmd[0]);
+			for(;t<numstrings;t++){
+				cmd[t] = strdup(tcmd[t]);
+				printf("%d\n",t);
+			}
+			cmd[t] = NULL;
 			if(!strcasecmp(cmd[0], "exit")){
 				loopfree(commands,numcommands);
-				loopfree(cmd, numstrings);time();
+				loopfree(cmd, numstrings);loopfree(prepaths,npaths);loopfree(tcmd, numstrings);time();
 				exit(0);
 			}
 			if((!strcasecmp(cmd[0], "mode"))||(strlen(cmd[0])==1)){
 					mode_ret = mode(cmd, numstrings, m);
 					if(mode_ret == m){
-						i++; loopfree(cmd, numstrings); continue;
+						i++; loopfree(cmd, numstrings);loopfree(tcmd,numstrings); continue;
 					}else if(mode_ret == 'f'){
 					}else{
-						m = mode_ret; loopfree(cmd, numstrings); continue;
+						m = mode_ret; loopfree(cmd, numstrings);loopfree(tcmd,numstrings); i++; continue;
 					}
 			}
        		pid_t p = fork();
@@ -302,6 +375,7 @@ main(int argc, char **argv) {
             	if (execv(cmd[0], cmd) < 0) {
                 	fprintf(stderr, "execv failed: %s\n", strerror	(errno)); 
 					loopfree(cmd,numstrings);loopfree(commands,numcommands);
+					loopfree(prepaths,npaths);loopfree(tcmd,numstrings);
 					exit(0);
             	}
 			} else if (p > 0) {
@@ -321,7 +395,7 @@ main(int argc, char **argv) {
         	}
 			
 			i++; //next command
-			loopfree(cmd, numstrings); 
+			loopfree(cmd, numstrings); loopfree(tcmd,numstrings);
 		}
 		loopfree(commands, numcommands);
 		//all commands have finished
@@ -329,14 +403,16 @@ main(int argc, char **argv) {
         fflush(stdout);
     }
 	if(nulltest==NULL){
-		time();
+		loopfree(prepaths,npaths);time();
 		return 0;
 	}
-	loopfree(commands, numcommands);
+	loopfree(commands, numcommands); loopfree(prepaths,npaths);
 	time();
     return 0;
 }
 
 
+
+	
 
 	
